@@ -1,0 +1,14 @@
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+sqlalchemy==2.0.35
+pydantic==2.13.5
+pydantic-settings==2.15.0
+PyJWT==2.7.0
+cryptography==46.0.6
+qrcode[pil]==7.4.2
+python-dotenv==1.0.1
+pytest==9.1.1
+httpx==0.28.1
+ruff==0.16.6
+psycopg2-binary==2.9.12
+email-validator==2.3.0
