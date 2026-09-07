@@ -1,13 +1,14 @@
+import fakeredis
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app import events
 from app.main import app
 from app.database import Base, get_db
 
-# Test dung SQLite in mem, k lquan db that
 engine = create_engine(
     "sqlite:///:memory:",
     connect_args={"check_same_thread": False},
@@ -32,6 +33,14 @@ def setup_db():
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture(autouse=True)
+def fake_redis(monkeypatch):
+    """Thay redis client bang gia de chay test"""
+    client = fakeredis.FakeStrictRedis()
+    monkeypatch.setattr(events, "_redis_client", client)
+    return client
 
 
 @pytest.fixture
