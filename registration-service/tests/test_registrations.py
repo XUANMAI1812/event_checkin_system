@@ -1,5 +1,7 @@
 import os
 
+from app import events
+
 
 def _create_event(client, capacity=1):
     resp = client.post(
@@ -15,7 +17,7 @@ def _create_event(client, capacity=1):
     return resp.json()["id"]
 
 
-def test_register_attendee_success(client):
+def test_register_attendee_success(client, fake_redis):
     event_id = _create_event(client, capacity=2)
 
     resp = client.post(
@@ -27,6 +29,11 @@ def test_register_attendee_success(client):
     assert data["event_id"] == event_id
     assert data["ticket_id"]
     assert os.path.exists(data["qr_code_path"])
+
+    # dang ky thanh cong phai publish 1 event ticketcreated len
+    # Redis stream cho notification worker tieu thu
+    entries = fake_redis.xrange(events.settings.ticket_stream_name)
+    assert len(entries) == 1
 
 
 def test_register_event_full(client):
