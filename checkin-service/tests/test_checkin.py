@@ -34,7 +34,7 @@ def test_checkin_duplicate_rejected(client, test_keys):
     assert r2.status_code == 409
 
 
-def test_checkin_forged_signature_rejected(client, other_keys):
+def test_checkin_forged_signature_rejected(client, test_keys, other_keys):
     # ky bang key la (khong phai key registration-service that su dung)
     token = _sign(other_keys["private_key"], "ticket-003", event_id=1)
 
