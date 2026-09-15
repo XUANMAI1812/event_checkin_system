@@ -1,9 +1,15 @@
+"""Tao bang trong DB cau hinh o DATABASE_URL. Chay 1 lan:
+
+    python -m scripts.init_db
+"""
+
+from app import models  # noqa: F401
 from app.database import Base, engine
-from app import models
 
 
 def main() -> None:
-    Base.metadata.create_all(bind=engine)
+    with engine.begin() as conn:
+        Base.metadata.create_all(bind=conn)
     print("Da tao xong bang trong database.")
 
 

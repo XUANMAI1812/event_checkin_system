@@ -4,10 +4,10 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import schemas, crud, events
-from ..database import get_db
-from ..security import sign_ticket, generate_qr_code
+from .. import crud, events, schemas
 from ..config import settings
+from ..database import get_db
+from ..security import generate_qr_code, sign_ticket
 
 router = APIRouter(prefix="/events", tags=["registrations"])
 

@@ -1,7 +1,7 @@
 import jwt
 
-from app.security import sign_ticket
 from app.config import settings
+from app.security import sign_ticket
 
 
 def test_sign_ticket_roundtrip():
@@ -16,8 +16,8 @@ def test_sign_ticket_roundtrip():
 
 
 def test_sign_ticket_rejects_wrong_key():
-    from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
 
     token = sign_ticket("abc-123", event_id=1)
 

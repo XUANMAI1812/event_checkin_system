@@ -1,0 +1,117 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: checkin_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdev123}
+      POSTGRES_DB: checkin_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres-init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U checkin_user -d checkin_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+  keygen:
+    build:
+      context: ./registration-service
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        if [ -f keys/private_key.pem ] && [ -f keys/public_key.pem ]; then
+          echo "Da co san cap khoa, bo qua."
+        else
+          bash scripts/generate_keys.sh
+        fi
+    volumes:
+      - jwt-keys:/app/keys
+
+  registration-service:
+    build:
+      context: ./registration-service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keygen:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql+psycopg2://checkin_user:${POSTGRES_PASSWORD:-localdev123}@postgres:5432/checkin_db
+      REDIS_URL: redis://redis:6379/0
+      TICKET_STREAM_NAME: ticket_created
+      JWT_PRIVATE_KEY_PATH: keys/private_key.pem
+      JWT_PUBLIC_KEY_PATH: keys/public_key.pem
+      JWT_ALGORITHM: RS256
+      TICKET_QR_DIR: qrcodes
+    volumes:
+      - jwt-keys:/app/keys:ro
+      - qr-shared:/app/qrcodes
+    ports:
+      - "8000:8000"
+
+  checkin-service:
+    build:
+      context: ./checkin-service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keygen:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql+psycopg2://checkin_user:${POSTGRES_PASSWORD:-localdev123}@postgres:5432/checkin_service_db
+      JWT_PUBLIC_KEY_PATH: keys/public_key.pem
+      JWT_ALGORITHM: RS256
+    volumes:
+      - jwt-keys:/app/keys:ro
+    ports:
+      - "8001:8001"
+
+  notification-worker:
+    build:
+      context: ./notification-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg2://checkin_user:${POSTGRES_PASSWORD:-localdev123}@postgres:5432/notification_worker_db
+      REDIS_URL: redis://redis:6379/0
+      TICKET_STREAM_NAME: ticket_created
+      CONSUMER_GROUP: notification_workers
+      CONSUMER_NAME: worker-1
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_FROM: no-reply@event-checkin.local
+    volumes:
+      - qr-shared:/app/qrcodes
+
+volumes:
+  pgdata:
+  jwt-keys:
+  qr-shared:

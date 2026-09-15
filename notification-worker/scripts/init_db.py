@@ -1,5 +1,4 @@
 from app.database import Base, engine
-from app import models
 
 
 def main() -> None:

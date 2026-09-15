@@ -6,8 +6,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app import events
-from app.main import app
 from app.database import Base, get_db
+from app.main import app
 
 engine = create_engine(
     "sqlite:///:memory:",
