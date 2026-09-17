@@ -1,0 +1,116 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: checkin_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: checkin_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres-init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U checkin_user -d checkin_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
+
+  keygen:
+    image: ghcr.io/xuanmai1812/event_checkin_system/registration-service:${IMAGE_TAG:-latest}
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        if [ -f keys/private_key.pem ] && [ -f keys/public_key.pem ]; then
+          echo "Da co san cap khoa, bo qua."
+        else
+          bash scripts/generate_keys.sh
+        fi
+        cp keys/public_key.pem public-key-only/public_key.pem
+    volumes:
+      - jwt-keys:/app/keys
+      - jwt-public-key:/app/public-key-only
+
+  registration-service:
+    image: ghcr.io/xuanmai1812/event_checkin_system/registration-service:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keygen:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql+psycopg2://checkin_user:${POSTGRES_PASSWORD}@postgres:5432/checkin_db
+      REDIS_URL: redis://redis:6379/0
+      TICKET_STREAM_NAME: ticket_created
+      JWT_PRIVATE_KEY_PATH: keys/private_key.pem
+      JWT_PUBLIC_KEY_PATH: keys/public_key.pem
+      JWT_ALGORITHM: RS256
+      TICKET_QR_DIR: qrcodes
+    volumes:
+      - jwt-keys:/app/keys:ro
+      - qr-shared:/app/qrcodes
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  checkin-service:
+    image: ghcr.io/xuanmai1812/event_checkin_system/checkin-service:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keygen:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql+psycopg2://checkin_user:${POSTGRES_PASSWORD}@postgres:5432/checkin_service_db
+      JWT_PUBLIC_KEY_PATH: keys/public_key.pem
+      JWT_ALGORITHM: RS256
+    volumes:
+      - jwt-public-key:/app/keys:ro
+    ports:
+      - "127.0.0.1:8001:8001"
+
+  notification-worker:
+    image: ghcr.io/xuanmai1812/event_checkin_system/notification-worker:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg2://checkin_user:${POSTGRES_PASSWORD}@postgres:5432/notification_worker_db
+      REDIS_URL: redis://redis:6379/0
+      TICKET_STREAM_NAME: ticket_created
+      CONSUMER_GROUP: notification_workers
+      CONSUMER_NAME: worker-1
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_FROM: ${SMTP_FROM}
+    volumes:
+      - qr-shared:/app/qrcodes
+
+volumes:
+  pgdata:
+  jwt-keys:
+  jwt-public-key:
+  qr-shared:

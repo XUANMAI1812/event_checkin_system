@@ -1,4 +1,4 @@
-name: CI - checkin-service
+name: CI/CD - checkin-service
 
 on:
   push:
@@ -38,16 +38,51 @@ jobs:
       - run: pip install -r requirements.txt
       - run: pytest -v
 
-  build:
+  build-and-push:
     runs-on: ubuntu-latest
     needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v7
         with:
           context: checkin-service
-          push: false
-          tags: ghcr.io/xuanmai1812/event_checkin_system/checkin-service:${{ github.sha }}
+          push: true
+          tags: |
+            ghcr.io/xuanmai1812/event_checkin_system/checkin-service:${{ github.sha }}
+            ghcr.io/xuanmai1812/event_checkin_system/checkin-service:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: SSH deploy - pull & recreate checkin-service
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/event_checkin_system
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            export IMAGE_TAG=${{ github.sha }}
+            docker compose -f docker-compose.prod.yml pull checkin-service
+            docker compose -f docker-compose.prod.yml up -d checkin-service
+            docker image prune -f
