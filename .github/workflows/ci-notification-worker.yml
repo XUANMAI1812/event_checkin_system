@@ -84,5 +84,5 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
             export IMAGE_TAG=${{ github.sha }}
             docker compose -f docker-compose.prod.yml pull notification-worker
-            docker compose -f docker-compose.prod.yml up -d notification-worker
+            docker compose -f docker-compose.prod.yml up -d --no-deps notification-worker
             docker image prune -f
