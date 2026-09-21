@@ -1,0 +1,15 @@
+[Unit]
+Description=Event check-in watcher (tu restart container unhealthy + canh bao Telegram)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+EnvironmentFile=/etc/event-checkin-watcher.env
+ExecStart=/usr/local/bin/event-checkin-watcher
+Restart=always
+RestartSec=5
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target

@@ -17,4 +17,6 @@ COPY . .
 RUN chown -R appuser:appuser /app
 ENV PATH=/home/appuser/.local/bin:$PATH PYTHONUNBUFFERED=1
 USER appuser
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD ["python", "-c", "import os, sys, time; sys.exit(0 if time.time() - os.path.getmtime('/tmp/worker_heartbeat') < 30 else 1)"]
 CMD ["python", "-m", "app.consumer"]

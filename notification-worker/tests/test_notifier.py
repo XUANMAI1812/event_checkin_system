@@ -1,5 +1,6 @@
 from email.message import EmailMessage
 
+from app.config import settings
 from app.notifier import send_ticket_email
 
 
@@ -8,10 +9,11 @@ def test_send_ticket_email_builds_and_sends(tmp_path, monkeypatch):
     qr_path.write_bytes(b"fake-png-bytes")
 
     sent_messages = []
+    smtp_kwargs = {}
 
     class FakeSMTP:
-        def __init__(self, host, port):
-            pass
+        def __init__(self, host, port, timeout=None):
+            smtp_kwargs["timeout"] = timeout
 
         def __enter__(self):
             return self
@@ -30,3 +32,4 @@ def test_send_ticket_email_builds_and_sends(tmp_path, monkeypatch):
     msg = sent_messages[0]
     assert msg["To"] == "a@example.com"
     assert msg.get_content_type() == "multipart/mixed"
+    assert smtp_kwargs["timeout"] == settings.smtp_timeout_seconds
