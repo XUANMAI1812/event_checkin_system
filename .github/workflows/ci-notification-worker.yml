@@ -98,3 +98,15 @@ jobs:
             docker compose -f docker-compose.prod.yml pull notification-worker
             docker compose -f docker-compose.prod.yml up -d --no-deps notification-worker
             docker image prune -f
+
+  notify-failure:
+    runs-on: ubuntu-24.04
+    needs: [build-and-push, deploy]
+    if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Telegram alert - CD that bai
+        run: |
+          curl -sS -m 10 "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            --data-urlencode "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            --data-urlencode "text=[GitHub Actions] CD that bai: notification-worker (${{ github.sha }}). Xem: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+          || true
