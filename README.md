@@ -17,7 +17,7 @@ Each component exists because of one of these problems, not to add tools to the 
 
 ## Architecture
 
-<!-- TODO: add the architecture diagram, e.g. ![Architecture](docs/architecture.png) -->
+![Architecture](docs/architecture.png)
 
 ## Components and ticket flow
 
